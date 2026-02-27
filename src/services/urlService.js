@@ -29,17 +29,13 @@ async function createShortUrl(originalUrl) {
 
 async function getOriginalUrl(shortCode) {
   const result = await pool.query(
-    "SELECT original_url FROM urls WHERE short_code = $1",
+    "UPDATE urls SET clicks = clicks+1 WHERE short_code = $1 RETURNING original_url",
     [shortCode],
   );
 
   if (result.rows.length === 0) {
     throw { status: 404, message: "Short URL not found" };
   }
-
-  await pool.query("UPDATE urls SET clicks = clicks+1 WHERE short_code = $1", [
-    shortCode,
-  ]);
 
   return result.rows[0].original_url;
 }
