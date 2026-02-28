@@ -1,9 +1,19 @@
 const pool = require("../db/pool");
 const { redisClient } = require("../cache/redisClient");
 
-function startClickFlusher() {
+async function startClickFlusher() {
   setInterval(async () => {
     try {
+      const lock = await redisClient.set(
+        'lock:clickFlush',
+        'true',
+        { NX:true, EX:5 }
+      );
+
+      if (!lock) {
+        return;  // another instance is flushing
+      }
+      
       const keys = await redisClient.keys("clicks:*");
 
       for (const key of keys) {
