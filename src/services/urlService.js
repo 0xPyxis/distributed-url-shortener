@@ -1,5 +1,6 @@
 const pool = require("../db/pool");
 const { nanoid } = require("nanoid");
+const { redisClient } = require("../cache/redisClient");
 
 async function createShortUrl(originalUrl) {
   if (!originalUrl) {
@@ -28,8 +29,28 @@ async function createShortUrl(originalUrl) {
 }
 
 async function getOriginalUrl(shortCode) {
+  // check cache
+  let cachedUrl = null;
+
+  try {
+    cachedUrl = await redisClient.get(shortCode);
+  } catch (err) {
+    console.error("Redis read error:", err);
+  }
+
+  if (cachedUrl) {
+    // increment DB
+    await pool.query(
+      "UPDATE urls SET clicks = clicks+1 WHERE short_code = $1",
+      [shortCode],
+    );
+
+    return cachedUrl;
+  }
+
+  // if not in cache, query DB
   const result = await pool.query(
-    "UPDATE urls SET clicks = clicks+1 WHERE short_code = $1 RETURNING original_url",
+    "SELECT original_url FROM urls WHERE short_code = $1",
     [shortCode],
   );
 
@@ -37,7 +58,23 @@ async function getOriginalUrl(shortCode) {
     throw { status: 404, message: "Short URL not found" };
   }
 
-  return result.rows[0].original_url;
+  const originalUrl = result.rows[0].original_url;
+
+  // store in redis
+  try {
+    await redisClient.set(shortCode, originalUrl, {
+      EX: 60 * 60, // 1 hr TTL
+    });
+  } catch (err) {
+    console.error("Redis write error :", err);
+  }
+
+  // increment clicks
+  await pool.query("UPDATE urls SET clicks = clicks+1 WHERE short_code = $1", [
+    shortCode,
+  ]);
+
+  return originalUrl;
 }
 
 module.exports = {
