@@ -9,6 +9,9 @@ const PORT = process.env.PORT || 5001;
 
 const { connectRedis } = require("./cache/redisClient");
 
+const startClickFlusher = require('./utils/clickFlusher');
+startClickFlusher();
+
 app.use(express.json());
 
 app.get("/health", (req, res) => {
