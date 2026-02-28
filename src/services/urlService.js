@@ -7,16 +7,6 @@ async function createShortUrl(originalUrl) {
     throw { status: 400, message: "URL is required" };
   }
 
-  // check if URL already exists
-  const existing = await pool.query(
-    'SELECT short_code FROM urls WHERE original_url = $1', 
-    [originalUrl],
-  );
-
-  if (existing.rows.length > 0) {
-    return existing.rows[0].short_code;
-  }
-
   // generate new short code
   const shortCode = nanoid(6);
 
@@ -24,6 +14,8 @@ async function createShortUrl(originalUrl) {
     const result = await pool.query(
       `INSERT INTO urls (short_code, original_url)
             VALUES ($1, $2)
+            ON CONFLICT (original_url) 
+            DO UPDATE SET original_url = EXCLUDED.original_url
             RETURNING short_code`,
       [shortCode, originalUrl],
     );
