@@ -43,10 +43,7 @@ async function getOriginalUrl(shortCode) {
 
   if (cachedUrl) {
     // increment DB
-    await pool.query(
-      "UPDATE urls SET clicks = clicks+1 WHERE short_code = $1",
-      [shortCode],
-    );
+    await redisClient.incr(`clicks:${shortCode}`);
 
     return cachedUrl;
   }
@@ -68,14 +65,10 @@ async function getOriginalUrl(shortCode) {
     await redisClient.set(shortCode, originalUrl, {
       EX: 60 * 60, // 1 hr TTL
     });
-  } catch (err) {
-    console.error("Redis write error :", err);
-  }
+  } catch (err) {}
 
   // increment clicks
-  await pool.query("UPDATE urls SET clicks = clicks+1 WHERE short_code = $1", [
-    shortCode,
-  ]);
+  await redisClient.incr(`clicks:${shortCode}`);
 
   return originalUrl;
 }
